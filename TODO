@@ -1,0 +1,4 @@
+TODO: This is a file for things that need fixing
+
+Arrays currently do not support negative indexes.
+We don't fully match the spec in supplying infinite precision. Modification of the spec to instead allow changing precision?
