@@ -2,6 +2,7 @@ use data::*;
 use parse::*;
 use bigdecimal::BigDecimal;
 use std::io;
+use num::ToPrimitive;
 
 pub struct Executor {
 	stack: QuarkStack,
@@ -92,12 +93,14 @@ impl Executor {
 								14=>multiply_cmd(self),
 								15=>divide_cmd(self),
 								16=>exec_block(self),
+								18=>to_range(self),
 								28=>get_input(self),
 								34=>{while_loop(self, false);},
 								37=>{let val = self.stack.pop(); self.stack.push(val.clone()); self.stack.push(val);}
 								41=>print_cmd(self),
 								53=>self.stack.arraymark(),
 								54=>collect_array(self),
+								69=>get_length(self),
 								74=>{self.stack.pin()},
 								_=> {println!("WARNING: Unknown {}", e)}
 							}
@@ -276,4 +279,35 @@ fn get_input(e: &mut Executor) {
 			panic!("Not a valid number.");
 		}
 	}));
+}
+
+fn get_length(e: &mut Executor) {
+	match e.stack.pop() {
+		QuarkType::Array(v) => {
+			e.stack.push(QuarkType::Number(BigDecimal::from(v.len() as u64)));
+		}
+		_=>{},
+	}
+}
+
+fn to_range(e: &mut Executor) {
+	let backup = e.stack.flags();
+	match e.stack.pop() {
+		QuarkType::Number(x) => {
+			match e.stack.pop() {
+				QuarkType::Number(y) => {
+					let range = (y.to_u64().unwrap())..=(x.to_u64().unwrap());
+					let mut new = vec![];
+					println!("{:?}",range);
+
+					for i in range {
+						new.push(QuarkType::Number(BigDecimal::from(i)));
+					}
+					e.stack.push(QuarkType::Array(new));
+				}
+				_=>{e.stack.push(QuarkType::Number(x));e.stack.flag(backup);},
+			}
+		},
+		_=>{},
+	}
 }

@@ -1,3 +1,5 @@
+#![feature(inclusive_range_syntax)]
+
 extern crate bit_vec;
 extern crate bigdecimal;
 extern crate num;

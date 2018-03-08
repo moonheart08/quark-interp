@@ -58,11 +58,24 @@ impl QuarkStack {
 	}
 
 	pub fn flags(&mut self) -> QuarkMarker {
-		let val = self.container.pop();
-		match val {
-			Some(e) => e.1.clone(),
-			None => QuarkMarker::NONE,
+		if self.container.len() == 0 {
+			self.container.push((QuarkType::Number(BigDecimal::from(0)), QuarkMarker::NONE))
 		}
+		let val = self.container.pop();
+		let val2 = match val.clone() {
+			Some(e) => e.1,
+			None => unreachable!(),
+		};
+		self.container.push(val.unwrap());
+		return val2;
+	}
+
+	pub fn flag(&mut self, e: QuarkMarker) {
+		if self.container.len() == 0 {
+			self.container.push((QuarkType::Number(BigDecimal::from(0)), QuarkMarker::NONE))
+		}
+		let len = self.container.len()-1;
+		self.container[len].1.set(e, true);
 	}
 
 	pub fn pin(&mut self) {
