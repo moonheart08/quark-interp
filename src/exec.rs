@@ -2,7 +2,13 @@ use data::*;
 use parse::*;
 use bigdecimal::BigDecimal;
 use std::io;
-use num::ToPrimitive;
+use num::*;
+
+macro_rules! qNumber {
+	($e:expr) => {
+		QuarkType::Number(BigDecimal::from($e))
+	}
+}
 
 pub struct Executor {
 	stack: QuarkStack,
@@ -19,7 +25,8 @@ type ExecutorLambda = fn(&mut Executor, bool) -> bool;
 #[derive(Debug)]
 enum CMDState {
 	None,
-	WhileLoop(/*to_execute:*/Vec<CodePiece>)
+	WhileLoop(/*to_execute:*/Vec<CodePiece>),
+	RepeatLoop(Vec<CodePiece>),
 }
 
 impl Executor {
@@ -48,9 +55,9 @@ impl Executor {
 					None => None,
 				};
 			} else {
-				if self.curr_block[blen-1].len() < self.curr_block_pos[blen-1] {
-						to_exec = Some(self.curr_block[blen-1][self.curr_block_pos[blen-1]].clone());
-						self.curr_block_pos[blen-1] += 1;
+				if self.curr_block[blen-1].len() > self.curr_block_pos[blen-1] {
+					to_exec = Some(self.curr_block[blen-1][self.curr_block_pos[blen-1]].clone());
+					self.curr_block_pos[blen-1] += 1;
 				} else {
 						if match self.on_block_end.pop() {
 							Some(e) => {
@@ -58,6 +65,7 @@ impl Executor {
 							},
 							_ => false,
 						} {
+							let blen = self.curr_block.len();
 							i_hate_you_too_rust = false;
 							to_exec = Some(self.curr_block[blen-1][self.curr_block_pos[blen-1]].clone());
 							self.curr_block_pos[blen-1] += 1;
@@ -94,7 +102,14 @@ impl Executor {
 								15=>divide_cmd(self),
 								16=>exec_block(self),
 								18=>to_range(self),
+								19=>{self.stack.push(qNumber!(360))}
+								20=>{self.stack.push(qNumber!(180))}
+								21=>{self.stack.push(qNumber!(90))}
+								22=>{self.stack.push(qNumber!(270))}
+								25=>ceil(self),
+								26=>floor(self),
 								28=>get_input(self),
+								31=>{repeat_loop(self, false);}
 								34=>{while_loop(self, false);},
 								37=>{let val = self.stack.pop(); self.stack.push(val.clone()); self.stack.push(val);}
 								41=>print_cmd(self),
@@ -132,13 +147,11 @@ fn print_cmd(e: &mut Executor) {
 }
 
 fn divide_cmd(e: &mut Executor) {
-	let x = e.stack.pop();
-	let y = e.stack.pop();
-	match x {
+	match e.stack.pop() {
 		QuarkType::Number(x) => {
-			match y {
+			match e.stack.pop() {
 				QuarkType::Number(y) => {
-					e.stack.push(QuarkType::Number(x/y));
+					e.stack.push(qNumber!(x/y));
 				}
 				_ => {},
 			}
@@ -148,13 +161,11 @@ fn divide_cmd(e: &mut Executor) {
 }
 
 fn multiply_cmd(e: &mut Executor) {
-	let x = e.stack.pop();
-	let y = e.stack.pop();
-	match x {
+	match e.stack.pop() {
 		QuarkType::Number(x) => {
-			match y {
+			match e.stack.pop() {
 				QuarkType::Number(y) => {
-					e.stack.push(QuarkType::Number(x*y));
+					e.stack.push(qNumber!(x*y));
 				}
 				_ => {},
 			}
@@ -164,13 +175,11 @@ fn multiply_cmd(e: &mut Executor) {
 }
 
 fn add_cmd(e: &mut Executor) {
-	let x = e.stack.pop();
-	let y = e.stack.pop();
-	match x {
+	match e.stack.pop() {
 		QuarkType::Number(x) => {
-			match y {
+			match e.stack.pop() {
 				QuarkType::Number(y) => {
-					e.stack.push(QuarkType::Number(x+y));
+					e.stack.push(qNumber!(x+y));
 				}
 				_ => {},
 			}
@@ -180,13 +189,11 @@ fn add_cmd(e: &mut Executor) {
 }
 
 fn subtract_cmd(e: &mut Executor) {
-	let x = e.stack.pop();
-	let y = e.stack.pop();
-	match x {
+	match e.stack.pop() {
 		QuarkType::Number(x) => {
-			match y {
+			match e.stack.pop() {
 				QuarkType::Number(y) => {
-					e.stack.push(QuarkType::Number(x-y));
+					e.stack.push(qNumber!(x-y));
 				}
 				_ => {},
 			}
@@ -201,7 +208,7 @@ fn exec_block(e: &mut Executor) {
 			e.curr_block_pos.push(0);
 			e.curr_block.push(to_exec); //Yay!
 		}
-		_ => {/*no pls*/}
+		_ => {}
 	}
 
 }
@@ -226,11 +233,12 @@ fn collect_array(e: &mut Executor) {
 
 fn while_loop(e: &mut Executor, islambdad: bool) -> bool {
 	if !islambdad {
+
 		let block = match e.stack.pop() {
 			QuarkType::Block(e) => {
 				e
 			}
-			_=>{return false; /*RIP*/}
+			_=>{return false;}
 		};
 		e.curr_block_pos.push(0);
 		e.curr_block.push(block.clone());
@@ -246,7 +254,7 @@ fn while_loop(e: &mut Executor, islambdad: bool) -> bool {
 				true
 			}
 		},
-		_ => {true},
+		_ => {false},
 	}/*HINT: If block begins here*/{
 		e.curr_block_pos.pop();
 		e.curr_block.pop();
@@ -262,6 +270,11 @@ fn while_loop(e: &mut Executor, islambdad: bool) -> bool {
 				panic!("Got a non WhileLoop state!") }
 		});
 		e.on_block_end.push(while_loop);
+	} else {
+		e.curr_block_pos.pop();
+		e.curr_block.pop();
+		e.state.pop();
+		return false;
 	};
 	return true;
 }
@@ -291,23 +304,81 @@ fn get_length(e: &mut Executor) {
 }
 
 fn to_range(e: &mut Executor) {
-	let backup = e.stack.flags();
 	match e.stack.pop() {
 		QuarkType::Number(x) => {
 			match e.stack.pop() {
 				QuarkType::Number(y) => {
 					let range = (y.to_u64().unwrap())..=(x.to_u64().unwrap());
 					let mut new = vec![];
-					println!("{:?}",range);
 
 					for i in range {
 						new.push(QuarkType::Number(BigDecimal::from(i)));
 					}
 					e.stack.push(QuarkType::Array(new));
 				}
-				_=>{e.stack.push(QuarkType::Number(x));e.stack.flag(backup);},
+				_=>{},
 			}
 		},
 		_=>{},
 	}
+}
+
+//FIXME: This is causes a loss of precision. Remove these when implemented in BigDecimal.
+fn floor_bd(v: BigDecimal) -> BigDecimal {
+	let mut v = v.to_f32().unwrap();
+	return BigDecimal::from(v.floor());
+}
+
+fn ceil_bd(v: BigDecimal) -> BigDecimal {
+	let mut v = v.to_f32().unwrap();
+	return BigDecimal::from(v.ceil());
+}
+
+fn floor(e: &mut Executor) {
+	match e.stack.pop() {
+		QuarkType::Number(x) => {
+			e.stack.push(qNumber!(floor_bd(x)));
+		}
+		v=>{e.stack.push(v)}
+	}
+}
+
+fn ceil(e: &mut Executor) {
+	match e.stack.pop() {
+		QuarkType::Number(x) => {
+			e.stack.push(qNumber!(ceil_bd(x)));
+		}
+		v=>{e.stack.push(v)}
+	}
+}
+
+fn repeat_loop(e: &mut Executor, lambdad: bool) -> bool {
+	if !lambdad {
+		let block = match e.stack.pop() {
+			QuarkType::Block(e) => {
+				e
+			}
+			_=>{return false;}
+		};
+		e.curr_block_pos.push(0);
+		e.curr_block.push(block.clone());
+		e.on_block_end.push(repeat_loop);
+		e.state.push(CMDState::RepeatLoop(block));
+		return false;
+	}
+	e.curr_block_pos.pop();
+	e.curr_block.pop();
+
+	e.curr_block.push(match e.state.pop() {
+		Some(CMDState::RepeatLoop(v)) => {
+			e.curr_block_pos.push(0);
+			e.state.push(CMDState::RepeatLoop(v.clone()));
+			v
+		}
+		v => {
+			println!("{:?}\n{:?}\n{:?}", v, e.stack, e.state);
+			panic!("Got a non RepeatLoop state!") }
+	});
+	e.on_block_end.push(repeat_loop);
+	return true;
 }
