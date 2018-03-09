@@ -108,6 +108,7 @@ impl Executor {
 								22=>{self.stack.push(qNumber!(270))}
 								25=>ceil(self),
 								26=>floor(self),
+								27=>{let v = self.stack.pop(); self.stack.push(v.clone()); self.stack.push(v)}
 								28=>get_input(self),
 								31=>{repeat_loop(self, false);}
 								34=>{while_loop(self, false);},
@@ -117,6 +118,7 @@ impl Executor {
 								54=>collect_array(self),
 								69=>get_length(self),
 								74=>{self.stack.pin()},
+								79=>output_utf8(self),
 								_=> {println!("WARNING: Unknown {}", e)}
 							}
 						}
@@ -151,7 +153,7 @@ fn divide_cmd(e: &mut Executor) {
 		QuarkType::Number(x) => {
 			match e.stack.pop() {
 				QuarkType::Number(y) => {
-					e.stack.push(qNumber!(x/y));
+					e.stack.push(qNumber!(y/x));
 				}
 				_ => {},
 			}
@@ -165,7 +167,7 @@ fn multiply_cmd(e: &mut Executor) {
 		QuarkType::Number(x) => {
 			match e.stack.pop() {
 				QuarkType::Number(y) => {
-					e.stack.push(qNumber!(x*y));
+					e.stack.push(qNumber!(y*x));
 				}
 				_ => {},
 			}
@@ -179,7 +181,7 @@ fn add_cmd(e: &mut Executor) {
 		QuarkType::Number(x) => {
 			match e.stack.pop() {
 				QuarkType::Number(y) => {
-					e.stack.push(qNumber!(x+y));
+					e.stack.push(qNumber!(y+x));
 				}
 				_ => {},
 			}
@@ -193,7 +195,7 @@ fn subtract_cmd(e: &mut Executor) {
 		QuarkType::Number(x) => {
 			match e.stack.pop() {
 				QuarkType::Number(y) => {
-					e.stack.push(qNumber!(x-y));
+					e.stack.push(qNumber!(y-x));
 				}
 				_ => {},
 			}
@@ -216,13 +218,13 @@ fn exec_block(e: &mut Executor) {
 fn collect_array(e: &mut Executor) {
 	let mut newarr = vec![];
 	loop {
-		if e.stack.flags().contains(QuarkMarker::ARRAY_BEGIN) {
-			let val = e.stack.pop();
-			newarr.push(val);
+		if e.stack.is_end() {
 			e.stack.push(QuarkType::Array(newarr));
 			break;
 		}
-		if e.stack.is_end() {
+		if e.stack.flags().contains(QuarkMarker::ARRAY_BEGIN) {
+			let val = e.stack.pop();
+			newarr.push(val);
 			e.stack.push(QuarkType::Array(newarr));
 			break;
 		}
@@ -381,4 +383,23 @@ fn repeat_loop(e: &mut Executor, lambdad: bool) -> bool {
 	});
 	e.on_block_end.push(repeat_loop);
 	return true;
+}
+
+fn output_utf8(e: &mut Executor) {
+	match e.stack.pop() {
+		QuarkType::Array(v) => {
+			let mut out = vec![];
+			for i in v {
+				match i {
+					QuarkType::Number(vi) => {
+						out.push(vi.to_u64().unwrap() as u8);
+					}
+					_=>{}
+				}
+			}
+			let res = String::from_utf8_lossy(&out);
+			println!("{}",res);
+		}
+		_=>{}
+	}
 }
